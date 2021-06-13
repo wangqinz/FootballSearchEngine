@@ -2,7 +2,7 @@
 
 # Welcome to Football Center!
 
-https://haoliangzheng.shinyapps.io/Football/
+[Entrance](https://qinzhewang.shinyapps.io/footballinfosearcher/)
 
 ## API and our wrapper functions
 
