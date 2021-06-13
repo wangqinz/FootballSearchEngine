@@ -1,0 +1,308 @@
+---
+title: "523 Final Project"
+author: "Outliers: Ryan Fang, Qinzhe Wang, Congwei Yang, Haoliang Zheng"
+date: "November 22, 2020"
+output: 
+  html_document:
+    theme: readable
+    toc: true
+    toc_depth: 2
+    toc_float: true
+    number_sections: false
+    df_print: paged
+    code_folding: hide
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, eval = FALSE, comment = FALSE, 
+                      message = FALSE, warning = FALSE, fig.align = "center")
+```
+
+# Introduction
+***
+Our project goal is to retrieve most up-to-date football match data from online 
+API and use a shiny app to display, visualize, and model the data. 
+`API-Football` contains the real-time data for most major leagues worldwide. In 
+this project, we will use the data from `API-Football` and focus on three major 
+European leagues: Premier League of England, Primera Division (La Liga) of Spain, 
+and Bundesliga of Germany. We will construct multiple API wrapper functions based 
+on the API structure to help us scrape data in the Shiny App, and use the data 
+scraped to build visualization and clustering model within the App. Moreover, 
+the App will also serve as a football match info center that provides team/play 
+information search, player/league statistics summary and real-time match schedule 
+panel. 
+
+
+# API wrapper functions
+***
+We constructed mutiple API wrapper function to use in the Shiny App. They have 
+similar structure but different parameters and returned values based on the 
+structure of the API. The following code chunk is a example wrapper function. 
+
+```{r wrapper-function1}
+get_player_by_team_season <- function(
+  # apikey
+  apiKey = "65563b231bmsh5e04da3f6a146c5p1b1625jsn0e31c1d79a15",
+  # parmaters
+  team = 33, 
+  season = "2018-2019"){
+  
+  
+  url_player <- paste0(
+    "https://api-football-v1.p.rapidapi.com/v2/players/team/", team, "/", season)
+  response_player_team <- VERB("GET", 
+                          url_player, 
+                          add_headers('x-rapidapi-host'='api-football-v1.p.rapidapi.com',
+                                      'x-rapidapi-key'= apiKey),
+                          content_type("application/octet-stream"))
+  raw_player_team <- content(response_player_team, "text",encoding = "UTF-8")
+  raw_table_player_team <- tibble(fromJSON(raw_player_team)$api$players)
+  table_player_team = flatten(raw_table_player_team)
+  return(table_player_team)
+}
+```
+
+The `API-Football` uses JSON format for all endpoints. Thus, for every wrapper 
+function, after the API call, we use `fromJSON()` and `tibble()` or 
+`as.data.frame()` to convert the data into workable format. 
+
+The following is a list of our wrapper functions: 
+
+1. `get_last_fixture()`: Get a number of recent finished matches in the specified 
+league and their corresponding data. The function takes `league_id` as parameter. 
+
+2. `get_next_fixtures()`: Get a number of future upcoming matches in the specified 
+league and their corresponding information. The function takes `league_id` as 
+parameter. 
+
+3. `get_league()`: Search all available leagues in the `API-Football`. 
+
+4. `get_player()`: Retrieve the data of a player by specifying `player_id`. 
+
+5. `get_player_by_team_season()`: Retrieve the data for all players of a team in 
+a season by specifying the `season` and `team_id`. 
+
+6. `get_team()`: Retrieve team information for all teams in the specified league. 
+The function takes `league_id` as parameter. 
+
+7. `get_team_data()`: Retrieve match data for specified team by input `league_id` 
+and `team_id`. 
+
+8. `get_team_fixture()`: Retrieve data for each game that the specified team 
+participated by input `league_id` and `team_id`. 
+
+9. `get_top_scorers()`: Get the player data for top 20 scorers in the specified 
+league by input `league_id`. 
+
+10. `get_standings()`: Get the final ranking and cumulative game results for 
+each team in the specified league by input `league_id`. 
+
+A noticeable property of the commonly used parameter `league_id` is that due to 
+the fact the teams in a league may change across different years, the `league_id` 
+will be different for the same league in different years. For example, Premier 
+League in 2018 and Premier League in 2019 have different `league_id`. We also 
+constructed a league-year-ID matching table for the leagues we are working with. 
+
+# Clustering function
+***
+Clustering is a technique to find similar observations in a dataset mostly based 
+on the Euclidean distances among those observations. In this way, the dataset is
+partitioned into K distinct and non-overlapping subsets. This is very useful for 
+pattern recognizing and potential classification. Since K-means clustering does 
+not require the labeling of the observations while the model is trained,it is an 
+unsupervised machine learning algorithm in clustering observations. Therefore, 
+this algorithm is most attractive by its effectiveness, easy handling, and 
+adaptiveness to a variety of unlabeled datasets. Here is an example of the 
+Algorithm of the K-means clustering.  
+
+1. Randomly assign a number, from 1 to K, to each of the observations. These serve 
+as initial cluster assignments for the observations.  
+2. Iterate until the cluster assignments stop changing:
+-item For each of the K clusters, compute the cluster centroid. The k-th cluster 
+centroid is the vector of the p feature means for the observations in the k-th 
+clustere.  
+-item Assign each observation to the cluster whos centroid is closest (where 
+closest is defined using Euclidean Distances.)  
+
+
+We construct this K-means clustering algorithm to group the players and teams 
+given certain football match seasons and leagues with a hyperparameter k. And we 
+also create animations showing how the players and teams are graduated clustered 
+using this algorithm. By showing the clustering result of the player and team, 
+people might discover some pattern among the players and teams which are not 
+revealed before. We use the `assist_per_game`, `goals_per_shot`, `ry_card_per_game`, 
+`goals_per_hour`, and `goals_per_shot` to characterize and cluster the players. 
+We use the `win`, `draw`, `lose`, `goals`, and other 11 matching related features 
+to character and cluster the teams. We run Principle Component Analysis (PCA) 
+on the features to reduce the number of features to two that they could be 
+displayed and animated on a two-dimensional plot. Here is a list of functions 
+developed for K-means clustering and visualization.  
+
+
+1. `show_cluster()`: show cluster results with varied K centroids on th `USArrest` 
+dataset for a simple demonstration of K-means clustering algorithm.  
+
+2. `get_data()`: retrieve "player" and "team" data given the certain league and 
+season. It also could generate data randomly. The principle component analysis 
+and data transformatino is done in this function if necessary.  
+
+3. `myKeans()`: this function implements K-means clustering algorithm on the
+dataset. It takes a list of parameters including, the number of centroids (k),
+the stopping criteria etc. It also returns a list of variables characterizing 
+the K-means clustering result such as, cluster result, cluster history, centroid
+history, with cluster sum of squares, and etc.  
+
+4. `cluster()`: this is the function wraps the `myKmeans()` function to prepare the 
+data for animation in plots and summary in tables.  
+
+5. `animation()`: this function complete the animation of the data, in which the 
+K-means clustering process is shown step by step so that the reader could easily 
+understand how the results are obtained.  
+
+To implement this algorithm, we also use our functions on our APP. As for the
+performance on the football data on our APP. The clustering results sometimes
+could be unstable because the number of the observations are limited to 20. The
+last four functions shown above serve as a modeling and visualization pipeline,
+which is adapted to "player", "team" and "random" data. The visualization is a 
+step-by-step clustering and assignment process, shown in a two-dimensional plot
+with clusters labeled by different colors. The metadata results related to the
+clusters are also summarized in the tables for the readers to explore.  
+
+In the clustering page, there are two tabs, one for the team clustering and the 
+other for scorer clustering. On the team clustering tab, after selecting the 
+season and the number of clusters, the visualization and summary tables are 
+displayed. The same procedure also works on the scorer cluster tab. There are
+also clustering demo displayed in the `More` page, one for the USArrest crime
+dataset clustering and one for the clustering on a randomly generated dataset.
+USArrest crime dataset clustering is simply to show what kind of results are
+generated from the clustering algorithm. The randomly generated data contains
+more than three hundred observations, so the K-means clustering result is stable
+and the clustering process is shown to the readers step by step to see how the
+clustering algorithm work in an interpretable and direct way.    
+
+# Shiny APP
+***
+
+Our Shiny App consists of 4 tabs: Recent fixture page that also serves as a 
+real-time match schedule panel, a Team/Player information search page, a 
+Team/Top Scorers data summary/visualization page, and a clustering model page. 
+
+1. The Recent Fixture Page. 
+
+When the user first open up the App, there will be a modal dialogue window pop 
+up and the user will be asked to select one of the three leagues: Premier League, 
+Primera Division (La Liga), and Bundesliga. After the user made the selection, 
+all content that the app display will be based on the selected league. the 
+recent fixture page will display (ordering from top to bottom) currently ongoing 
+match ("No fixtures for now" will be showed if there is no ongoing match), most 
+recent 3 finished matches (the user can scroll down to look at up to most recent
+10 matches), and the upcoming 3 matches (the user can also scroll down to look 
+at up 10 upcoming matches). The user can also see the league logo on the 
+top-right corner of the page and the team logo for each team in the schedule 
+chart. 
+
+2. Team/Player information search page. 
+
+The second tab is the Team/Player information search page. There are two sub-tabs, 
+one for team information search and another for player information search. 
+For the team information search, the user need to select a `Season` and click 
+on the `Search Teams`, then the app will display a table containing information 
+of all teams played during that season in the selected league. For the player 
+search page, the user need to select a `Season` and click on `Select This Season`. 
+Then a new input widget will pop up and user can use the drop-down menu to select
+a team that has played during that season in the specified league. Finally, the 
+user can click on the button `Search Players`. The App will display the team logo
+under the input widget section, and on the right side a table of player information
+will be displayed. 
+
+3. Team/Top Scorers data summary/visualization. 
+
+The third tab is the Team/Top Scorers data summary and visualization. Similar 
+with the structure of last tab, there are two sub-tabs, one for team data and 
+another for top scorers. 
+
+For the team data summary/visualization page, the user need to select a `Season`
+and click `Select This Season`. Then a new input widget will appear on the right 
+side and the user can use the drop-down menu to select a team. After selection, 
+the user can click on `Show Team Record` and the App will generate donut charts 
+for the team records in the selected season. The App will also show a win/lose 
+path of the selected team in that season. 
+
+In top scorers page, the user need to select a `Season` and click 
+`Select This Season`. Then a new widget will appear and the user can select the 
+player to visualize. The first graph is a word cloud. The "frequency" is based 
+on the total number of goals of the selected player during this season. The 
+second graph is radar chart for the player selected. The user can evaluate the 
+player based on five dimensions: Goals per Game, Assist per Game, Goals per Shot, 
+Red/Yellow Card per Game, Goals per Hour. 
+
+4. "Clustering" Panel
+
+We have written our own functions for clustering algorithm. We implement them 
+here on football data, and users can try different number of clusters by 
+themselves. There are also both team-level analysis and player-level analysis. 
+You can get the result from table also with visualizations below. The running 
+time may be a little bit long because we're making animation. Please wait for 
+a second!
+
+# Reference
+
+First, thanks to the [football API](https://www.api-football.com/) where we get
+data from.
+
+Seconds, there are few examples and Q&As that inspire us to achieve some 
+functions in my website, I will list them below:
+
+- https://gallery.shinyapps.io/010-download/
+
+  From this website, we learned how to achieve the download function.
+
+- https://shiny.rstudio.com/gallery/word-cloud.html
+  
+  From this website, we learned how to draw word cloud.
+
+- https://www.r-graph-gallery.com/spider-or-radar-chart.html
+  
+  From this website, we learned how to draw radar chart.
+  
+- https://datatables.net/reference/option/
+  
+  From this website, we learned how to set detailed options for the datatable.
+  
+- https://www.r-graph-gallery.com/128-ring-or-donut-plot.html
+
+  From this website, we learned how to make donut/ring charts using ggplot. 
+
+- https://shiny.rstudio.com/gallery/word-cloud.html
+  
+  From this website, we learned how to draw word cloud.
+
+- https://www.r-graph-gallery.com/spider-or-radar-chart.html
+  
+  From this website, we learned how to draw radar chart.
+  
+- https://datatables.net/reference/option/
+  
+  From this website, we learned how to set detailed options for the datatable. 
+
+- https://smorbieu.gitlab.io/animate-intermediate-results-of-your-algorithm/
+  
+  From this website, we learned how to implement some K-means algorithm in details 
+  some related animation in R. 
+
+- Gareth James, Daniela Witten, Trevor Hastie, Robert Tibshirani. An Introduction 
+to Statistical Learning : with Applications in R. New York :Springer, 2013.  
+  
+  From this book, we learned how the K-means algorithm works and how to implement 
+  the K-means clustering algorithm in R.  
+
+- https://www.datanovia.com/en/blog/gganimate-how-to-create-plots-with-beautifu
+l-animation-in-r/  
+  
+  From this website, we learned how to create animations.  
+
+- https://stackoverflow.com/questions/35421923/how-to-create-and-display-an-anim
+ated-gif-in-shiny  
+  
+  From this website, we learned how to implete the animation in the R-shiny app.
+
